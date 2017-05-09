@@ -34,23 +34,28 @@ type TReader struct {
 }
 
 type Request struct {
-	Header map[string]string
-	Url    string
-	Method string
-	Form   map[string]string
-	Proxy  string
+	Header    map[string]string
+	Url       string
+	Method    string
+	Form      map[string]string
+	Proxy     string
+	Cookiejar []*http.Cookie
 }
 
-func (opt *Options) init() {
+type Result struct {
+	Body      []byte
+	Err       error
+	Cookie    string
+	Cookiejar []*http.Cookie
+}
+
+func NewPools(opt *Options) *Pools {
 	if opt.Timeout == 0*time.Second {
 		opt.Timeout = 5 * time.Second
 	}
 	if opt.Size == 0 {
 		opt.Size = 3000
 	}
-}
-func NewPools(opt *Options) *Pools {
-	opt.init()
 	pool := new(Pools)
 	pool.Size = opt.Size
 	pool.Timeout = opt.Timeout
@@ -71,8 +76,7 @@ func (p *Pools) Open(args Request) (*Respond) {
 	var request *http.Request
 	var resp = new(Respond)
 	if args.Method == "" {
-		resp.Err = errors.New("url not exist")
-		return resp
+		args.Method = "GET"
 	}
 	if args.Url == "" {
 		resp.Err = errors.New("url not exist")
@@ -124,6 +128,7 @@ func (p *Pools) Open(args Request) (*Respond) {
 			request.Header.Add(key, value)
 		}
 	}
+
 	resp.Result, resp.Err = client.Do(request)
 	p.Clients <- client
 	return resp
@@ -139,24 +144,38 @@ func (resp *Respond) Transform() (*TReader) {
 	return reader
 }
 
-func (resp *Respond) Resault() ([]byte, error) {
-	var body []byte
-	var err = resp.Err
-	if resp.Err == nil {
-		body, err = ioutil.ReadAll(resp.Result.Body)
+func (resp *Respond) Resault() (*Result) {
+	var result = new(Result)
+	result.Err = resp.Err
+	if result.Err == nil {
+		result.Body, result.Err = ioutil.ReadAll(resp.Result.Body)
+		if len(resp.Result.Cookies()) > 0 {
+			result.Cookiejar = resp.Result.Cookies()
+			for i := range resp.Result.Cookies() {
+				result.Cookie += resp.Result.Cookies()[i].Name + resp.Result.Cookies()[i].Value + ";"
+			}
+			result.Cookie = result.Cookie[:len(result.Cookie)-1]
+		}
 		defer resp.Result.Body.Close()
-		return body, err
+		return result
 	}
-	return body, err
+	return result
 }
 
-func (reader *TReader) Resault() ([]byte, error) {
-	var body []byte
-	var err = reader.Err
-	if err == nil {
-		body, err = ioutil.ReadAll(reader.Result)
+func (reader *TReader) Resault() (*Result) {
+	var result = new(Result)
+	result.Err = reader.Err
+	if result.Err == nil {
+		result.Body, result.Err = ioutil.ReadAll(reader.Result)
+		if len(reader.Response.Cookies()) > 0 {
+			result.Cookiejar = reader.Response.Cookies()
+			for i := range reader.Response.Cookies() {
+				result.Cookie += reader.Response.Cookies()[i].Name + ":"+reader.Response.Cookies()[i].Value + ";"
+			}
+			result.Cookie = result.Cookie[:len(result.Cookie)-1]
+		}
 		defer reader.Response.Body.Close()
-		return body, err
+		return result
 	}
-	return body, err
+	return result
 }
