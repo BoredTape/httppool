@@ -7,13 +7,13 @@ http连接池
 go get -u github.com/BoredTape/httppool
 ```
 
-##导入
+## 导入
 
 ```go
 import "github.com/BoredTape/httppool"
 ```
 
-##快速开始
+## 快速开始
 
 ```go
 func GET() {
