@@ -66,9 +66,7 @@ func NewPools(opt *Options) *Pools {
 func (p *Pools) SetPools() {
 	p.Clients = make(chan *http.Client, p.Size)
 	for i := 0; i < p.Size; i++ {
-		go func() {
 			p.Clients <- &http.Client{Timeout: p.Timeout, }
-		}()
 	}
 }
 
