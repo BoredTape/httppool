@@ -40,6 +40,7 @@ type Request struct {
 	Form      map[string]string
 	Proxy     string
 	Cookiejar []*http.Cookie
+	Timeout   int
 }
 
 type Result struct {
@@ -66,7 +67,7 @@ func NewPools(opt *Options) *Pools {
 func (p *Pools) SetPools() {
 	p.Clients = make(chan *http.Client, p.Size)
 	for i := 0; i < p.Size; i++ {
-			p.Clients <- &http.Client{Timeout: p.Timeout, }
+		p.Clients <- &http.Client{Timeout: p.Timeout, }
 	}
 }
 
@@ -127,7 +128,14 @@ func (p *Pools) Open(args Request) (*Respond) {
 		}
 	}
 
-	resp.Result, resp.Err = client.Do(request)
+	if args.Timeout != 0 {
+		source_time_out := client.Timeout
+		client.Timeout = time.Duration(args.Timeout) * time.Second
+		resp.Result, resp.Err = client.Do(request)
+		client.Timeout = source_time_out
+	} else {
+		resp.Result, resp.Err = client.Do(request)
+	}
 	p.Clients <- client
 	return resp
 }
@@ -168,7 +176,7 @@ func (reader *TReader) Resault() (*Result) {
 		if len(reader.Response.Cookies()) > 0 {
 			result.Cookiejar = reader.Response.Cookies()
 			for i := range reader.Response.Cookies() {
-				result.Cookie += reader.Response.Cookies()[i].Name + ":"+reader.Response.Cookies()[i].Value + ";"
+				result.Cookie += reader.Response.Cookies()[i].Name + ":" + reader.Response.Cookies()[i].Value + ";"
 			}
 			result.Cookie = result.Cookie[:len(result.Cookie)-1]
 		}
